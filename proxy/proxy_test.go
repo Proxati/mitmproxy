@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kardianos/mitmproxy/cert"
+	"github.com/proxati/mitmproxy/cert"
 )
 
 func handleError(t *testing.T, err error) {

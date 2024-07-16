@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kardianos/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/proxy"
 )
 
 type AddHeader struct {

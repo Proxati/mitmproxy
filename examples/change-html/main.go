@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kardianos/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/proxy"
 	log "github.com/sirupsen/logrus"
 )
 

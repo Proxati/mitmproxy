@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/kardianos/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/proxy"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )

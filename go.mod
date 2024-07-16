@@ -1,4 +1,4 @@
-module github.com/kardianos/mitmproxy
+module github.com/proxati/mitmproxy
 
 go 1.18
 

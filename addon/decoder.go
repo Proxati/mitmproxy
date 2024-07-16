@@ -1,6 +1,6 @@
 package addon
 
-import "github.com/kardianos/mitmproxy/proxy"
+import "github.com/proxati/mitmproxy/proxy"
 
 // decode content-encoding then respond to client
 

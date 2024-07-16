@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/kardianos/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/proxy"
 	log "github.com/sirupsen/logrus"
 )
 

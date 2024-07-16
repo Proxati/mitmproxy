@@ -3,7 +3,7 @@ package addon
 import (
 	"time"
 
-	"github.com/kardianos/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/proxy"
 
 	log "github.com/sirupsen/logrus"
 )

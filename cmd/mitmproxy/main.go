@@ -6,10 +6,10 @@ import (
 	rawLog "log"
 	"os"
 
-	"github.com/kardianos/mitmproxy/addon"
-	"github.com/kardianos/mitmproxy/cert"
-	"github.com/kardianos/mitmproxy/proxy"
-	"github.com/kardianos/mitmproxy/web"
+	"github.com/proxati/mitmproxy/addon"
+	"github.com/proxati/mitmproxy/cert"
+	"github.com/proxati/mitmproxy/proxy"
+	"github.com/proxati/mitmproxy/web"
 	log "github.com/sirupsen/logrus"
 )
 

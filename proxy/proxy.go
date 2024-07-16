@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/kardianos/mitmproxy/cert"
+	"github.com/proxati/mitmproxy/cert"
 	log "github.com/sirupsen/logrus"
 )
 
