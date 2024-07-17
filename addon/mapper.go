@@ -2,9 +2,9 @@ package addon
 
 import (
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -22,7 +22,7 @@ type Mapper struct {
 }
 
 func NewMapper(dirname string) *Mapper {
-	infos, err := ioutil.ReadDir(dirname)
+	infos, err := os.ReadDir(dirname)
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +105,7 @@ type mapperParser struct {
 }
 
 func newMapperParserFromFile(filename string) (*mapperParser, error) {
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
