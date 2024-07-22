@@ -153,7 +153,7 @@ func (connCtx *ConnContext) initHttpServerConn() {
 	connCtx.ServerConn = serverConn
 }
 
-func (connCtx *ConnContext) initServerTcpConn(req *http.Request) error {
+func (connCtx *ConnContext) initServerTcpConn(_ *http.Request) error {
 	log.Debugln("in initServerTcpConn")
 	ServerConn := newServerConn()
 	connCtx.ServerConn = ServerConn
