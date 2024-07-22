@@ -22,7 +22,6 @@ import (
 
 	"github.com/golang/groupcache/lru"
 	"github.com/golang/groupcache/singleflight"
-	log "github.com/sirupsen/logrus"
 )
 
 // reference
@@ -120,7 +119,7 @@ func (p *PathLoader) Load() (*rsa.PrivateKey, *x509.Certificate, error) {
 			return nil, nil, err
 		}
 	} else {
-		log.Debug("load root ca")
+		sLogger.Debug("load root ca")
 		return key, cert, nil
 	}
 
@@ -128,7 +127,7 @@ func (p *PathLoader) Load() (*rsa.PrivateKey, *x509.Certificate, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Debug("create root ca")
+	sLogger.Debug("create root ca")
 	return key, cert, nil
 }
 
@@ -271,7 +270,7 @@ func (ca *CA) GetCert(commonName string) (*tls.Certificate, error) {
 	ca.cacheMu.Lock()
 	if val, ok := ca.cache.Get(commonName); ok {
 		ca.cacheMu.Unlock()
-		log.Debugf("ca GetCert: %v", commonName)
+		sLogger.Debug("ca GetCert", "commonName", commonName)
 		return val.(*tls.Certificate), nil
 	}
 	ca.cacheMu.Unlock()
@@ -295,7 +294,7 @@ func (ca *CA) GetCert(commonName string) (*tls.Certificate, error) {
 
 // TODO: Should support multiple SubjectAltName.
 func (ca *CA) GenerateCert(commonName string) (*tls.Certificate, error) {
-	log.Debugf("ca DummyCert: %v", commonName)
+	sLogger.Debug("ca DummyCert", "commonName", commonName)
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano() / 100000),
 		Subject: pkix.Name{

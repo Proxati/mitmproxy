@@ -3,12 +3,12 @@ package web
 import (
 	"embed"
 	"io/fs"
+	"log"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/proxati/mitmproxy/proxy"
-	log "github.com/sirupsen/logrus"
 )
 
 //go:embed client/build
@@ -43,9 +43,9 @@ func NewWebAddon(addr string) *WebAddon {
 	web.conns = make([]*concurrentConn, 0)
 
 	go func() {
-		log.Infof("web interface start listen at %v\n", addr)
+		sLogger.Info("web interface start", "listen", addr)
 		err := server.ListenAndServe()
-		log.Error(err)
+		sLogger.Error("could not start web interface", "error", err)
 	}()
 
 	return web

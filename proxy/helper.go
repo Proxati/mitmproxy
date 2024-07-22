@@ -3,12 +3,11 @@ package proxy
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"strings"
 	"sync"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var normalErrMsgs []string = []string{
@@ -22,31 +21,31 @@ var normalErrMsgs []string = []string{
 	"use of closed network connection",
 }
 
-// Only print unexpected error messages.
-func logErr(log *log.Entry, err error) (loged bool) {
+// logErr will only print unexpected error messages.
+// It will return true if the error is unexpected.
+func logErr(logger *slog.Logger, err error) bool {
 	msg := err.Error()
 
 	for _, str := range normalErrMsgs {
 		if strings.Contains(msg, str) {
-			log.Debug(err)
-			return
+			logger.Debug("ignoring network error", "error", err)
+			return false
 		}
 	}
 
-	log.Error(err)
-	loged = true
-	return
+	logger.Error("network error", "error", err)
+	return true
 }
 
 // Forward traffic.
-func transfer(log *log.Entry, server, client io.ReadWriteCloser) {
+func transfer(logger *slog.Logger, server, client io.ReadWriteCloser) {
 	done := make(chan struct{})
 	defer close(done)
 
 	errChan := make(chan error)
 	go func() {
 		_, err := io.Copy(server, client)
-		log.Debugln("client copy end", err)
+		logger.Debug("client copy end", "error", err)
 		client.Close()
 		select {
 		case <-done:
@@ -57,12 +56,12 @@ func transfer(log *log.Entry, server, client io.ReadWriteCloser) {
 	}()
 	go func() {
 		_, err := io.Copy(client, server)
-		log.Debugln("server copy end", err)
+		logger.Debug("server copy end", "error", err)
 		server.Close()
 
 		if clientConn, ok := client.(*wrapClientConn); ok {
 			err := clientConn.Conn.(*net.TCPConn).CloseRead()
-			log.Debugln("clientConn.Conn.(*net.TCPConn).CloseRead()", err)
+			logger.Debug("clientConn.Conn.(*net.TCPConn).CloseRead()", "error", err)
 		}
 
 		select {
@@ -75,7 +74,7 @@ func transfer(log *log.Entry, server, client io.ReadWriteCloser) {
 
 	for i := 0; i < 2; i++ {
 		if err := <-errChan; err != nil {
-			logErr(log, err)
+			logErr(logger, err)
 			return
 		}
 	}
@@ -116,7 +115,7 @@ func getTLSKeyLogWriter() io.Writer {
 
 		writer, err := os.OpenFile(logfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			log.Debugf("getTlsKeyLogWriter OpenFile error: %v", err)
+			sLogger.Warn("could not open getTlsKeyLogWriter file", "error", err)
 			return
 		}
 

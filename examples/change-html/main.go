@@ -1,12 +1,14 @@
 package main
 
 import (
+	"log/slog"
+	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/proxati/mitmproxy/proxy"
-	log "github.com/sirupsen/logrus"
 )
 
 var titleRegexp = regexp.MustCompile("(<title>)(.*?)(</title>)")
@@ -35,10 +37,14 @@ func main() {
 
 	p, err := proxy.NewProxy(opts)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("could not create proxy", "error", err)
+		os.Exit(1)
 	}
 
 	p.AddAddon(&ChangeHtml{})
 
-	log.Fatal(p.Start())
+	if err := p.Start(); err != http.ErrServerClosed {
+		slog.Error("failed to start proxy", "error", err)
+		os.Exit(1)
+	}
 }

@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	rawLog "log"
+	"log"
+	"log/slog"
 	"os"
 
 	"github.com/proxati/mitmproxy/addon"
 	"github.com/proxati/mitmproxy/cert"
 	"github.com/proxati/mitmproxy/proxy"
 	"github.com/proxati/mitmproxy/web"
-	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
@@ -48,27 +48,27 @@ func loadConfig() *Config {
 func main() {
 	config := loadConfig()
 
+	logHandler := &slog.HandlerOptions{}
 	if config.debug > 0 {
-		rawLog.SetFlags(rawLog.LstdFlags | rawLog.Lshortfile)
-		log.SetLevel(log.DebugLevel)
+		logHandler.Level = slog.LevelDebug
 	} else {
-		log.SetLevel(log.InfoLevel)
+		logHandler.Level = slog.LevelInfo
 	}
 	if config.debug == 2 {
-		log.SetReportCaller(true)
+		logHandler.AddSource = true
 	}
-	log.SetOutput(os.Stdout)
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
+	logger := slog.New(slog.NewTextHandler(os.Stdout, logHandler))
+	slog.SetDefault(logger)
 
 	l, err := cert.NewPathLoader(config.certPath)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("could not load certs", "error", err)
+		os.Exit(1)
 	}
 	ca, err := cert.New(l)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("could not create certs", "error", err)
+		os.Exit(1)
 	}
 
 	opts := &proxy.Options{
@@ -81,7 +81,8 @@ func main() {
 
 	p, err := proxy.NewProxy(opts)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("could not create new proxy", "error", err)
+		os.Exit(1)
 	}
 
 	if config.version {
@@ -89,7 +90,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Infof("go-mitmproxy version %v\n", p.Version)
+	logger.Debug("go-mitmproxy", "version", p.Version)
 
 	p.AddAddon(&addon.LogAddon{})
 	p.AddAddon(web.NewWebAddon(config.webAddr))

@@ -8,7 +8,6 @@ import (
 
 	"github.com/proxati/mitmproxy/proxy"
 	uuid "github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 // message:
@@ -294,7 +293,7 @@ func parseMessage(data []byte) message {
 	} else if mType == messageTypeChangeBreakPointRules {
 		return parseMessageMeta(data)
 	} else {
-		log.Warnf("invalid message type %v", mType)
+		sLogger.Warn("invalid message type", "mType", mType)
 		return nil
 	}
 }

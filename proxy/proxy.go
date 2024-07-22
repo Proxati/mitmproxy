@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/proxati/mitmproxy/cert"
-	log "github.com/sirupsen/logrus"
 )
 
 type Options struct {
@@ -79,7 +78,7 @@ func (proxy *Proxy) Start() error {
 
 	go proxy.interceptor.start()
 
-	log.Infof("Proxy start listen at %v\n", proxy.server.Addr)
+	sLogger.Debug("mitm proxy start", "listenAddress", proxy.server.Addr)
 	pln := &wrapListener{
 		Listener: ln,
 		proxy:    proxy,
@@ -105,17 +104,17 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log := log.WithFields(log.Fields{
-		"in":     "Proxy.ServeHTTP",
-		"url":    req.URL,
-		"method": req.Method,
-	})
+	logger := sLogger.With(
+		"in", "Proxy.ServeHTTP",
+		"url", req.URL,
+		"method", req.Method,
+	)
 
 	if !req.URL.IsAbs() || req.URL.Host == "" {
 		res.WriteHeader(400)
 		_, err := io.WriteString(res, "This is a proxy server and cannot initiate requests directly.")
 		if err != nil {
-			log.Error(err)
+			logger.Error("invalid proxy request", "error", err)
 		}
 		return
 	}
@@ -136,19 +135,19 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if body != nil {
 			_, err := io.Copy(res, body)
 			if err != nil {
-				logErr(log, err)
+				logErr(logger, err)
 			}
 		}
 		if response.BodyReader != nil {
 			_, err := io.Copy(res, response.BodyReader)
 			if err != nil {
-				logErr(log, err)
+				logErr(logger, err)
 			}
 		}
 		if response.Body != nil && len(response.Body) > 0 {
 			_, err := res.Write(response.Body)
 			if err != nil {
-				logErr(log, err)
+				logErr(logger, err)
 			}
 		}
 	}
@@ -156,7 +155,7 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// when addons panic
 	defer func() {
 		if err := recover(); err != nil {
-			log.Warnf("Recovered: %v\n", err)
+			logger.Error("Recovered from panic", "error", err)
 		}
 	}()
 
@@ -180,13 +179,13 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		reqBuf, r, err := readerToBuffer(req.Body, proxy.Opts.StreamLargeBodies)
 		reqBody = r
 		if err != nil {
-			log.Error(err)
+			logger.Error("could not read request body", "error", err)
 			res.WriteHeader(502)
 			return
 		}
 
 		if reqBuf == nil {
-			log.Warnf("request body size >= %v\n", proxy.Opts.StreamLargeBodies)
+			logger.Warn("request body size larger than threshold", "StreamLargeBodies", proxy.Opts.StreamLargeBodies)
 			f.Stream = true
 		} else {
 			f.Request.Body = reqBuf
@@ -208,7 +207,7 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 	proxyReq, err := http.NewRequest(f.Request.Method, f.Request.URL.String(), reqBody)
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not complete request", "error", err)
 		res.WriteHeader(502)
 		return
 	}
@@ -222,7 +221,7 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	f.ConnContext.initHttpServerConn()
 	proxyRes, err := f.ConnContext.ServerConn.client.Do(proxyReq)
 	if err != nil {
-		logErr(log, err)
+		logErr(logger, err)
 		res.WriteHeader(502)
 		return
 	}
@@ -254,12 +253,12 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		resBuf, r, err := readerToBuffer(proxyRes.Body, proxy.Opts.StreamLargeBodies)
 		resBody = r
 		if err != nil {
-			log.Error(err)
+			logger.Error("could not read response body", "error", err)
 			res.WriteHeader(502)
 			return
 		}
 		if resBuf == nil {
-			log.Warnf("response body size >= %v\n", proxy.Opts.StreamLargeBodies)
+			logger.Warn("response body size larger than threshold", "StreamLargeBodies", proxy.Opts.StreamLargeBodies)
 			f.Stream = true
 		} else {
 			f.Response.Body = resBuf
@@ -278,14 +277,14 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func (proxy *Proxy) handleConnect(res http.ResponseWriter, req *http.Request) {
-	log := log.WithFields(log.Fields{
-		"in":   "Proxy.handleConnect",
-		"host": req.Host,
-	})
+	logger := sLogger.With(
+		"in", "Proxy.handleConnect",
+		"host", req.Host,
+	)
 
 	conn, err := proxy.interceptor.dial(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not dial", "error", err)
 		res.WriteHeader(502)
 		return
 	}
@@ -293,7 +292,7 @@ func (proxy *Proxy) handleConnect(res http.ResponseWriter, req *http.Request) {
 
 	cconn, _, err := res.(http.Hijacker).Hijack()
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not hijack", "error", err)
 		res.WriteHeader(502)
 		return
 	}
@@ -304,9 +303,9 @@ func (proxy *Proxy) handleConnect(res http.ResponseWriter, req *http.Request) {
 
 	_, err = io.WriteString(cconn, "HTTP/1.1 200 Connection Established\r\n\r\n")
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not write response", "error", err)
 		return
 	}
 
-	transfer(log, conn, cconn)
+	transfer(logger, conn, cconn)
 }

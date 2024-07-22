@@ -2,6 +2,7 @@ package addon
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/proxati/mitmproxy/proxy"
-	log "github.com/sirupsen/logrus"
 )
 
 var httpsRegexp = regexp.MustCompile(`^https://`)
@@ -19,10 +19,13 @@ var httpsRegexp = regexp.MustCompile(`^https://`)
 type Mapper struct {
 	proxy.BaseAddon
 	reqResMap map[string]*proxy.Response
+	logger    *slog.Logger
 }
 
-func NewMapper(dirname string) *Mapper {
-	infos, err := os.ReadDir(dirname)
+func NewMapper(dirName string) *Mapper {
+	logger := sLogger.With("addonName", "Mapper", "dirName", dirName)
+
+	infos, err := os.ReadDir(dirName)
 	if err != nil {
 		panic(err)
 	}
@@ -37,12 +40,13 @@ func NewMapper(dirname string) *Mapper {
 			continue
 		}
 
-		filenames = append(filenames, filepath.Join(dirname, info.Name()))
+		filenames = append(filenames, filepath.Join(dirName, info.Name()))
 	}
 
 	if len(filenames) == 0 {
 		return &Mapper{
 			reqResMap: make(map[string]*proxy.Response),
+			logger:    logger,
 		}
 	}
 
@@ -51,7 +55,7 @@ func NewMapper(dirname string) *Mapper {
 		go func(filename string, ch chan<- interface{}) {
 			f, err := parseFlowFromFile(filename)
 			if err != nil {
-				log.Error(err)
+				logger.Error("could not parseFlowFromFile", "error", err)
 				ch <- err
 				return
 			}
@@ -65,13 +69,14 @@ func NewMapper(dirname string) *Mapper {
 		flowOrErr := <-ch
 		if f, ok := flowOrErr.(*proxy.Flow); ok {
 			key := buildReqKey(f.Request)
-			log.Infof("add request mapper: %v", key)
+			logger.Info("add request mapper", "key", key)
 			reqResMap[key] = f.Response
 		}
 	}
 
 	return &Mapper{
 		reqResMap: reqResMap,
+		logger:    logger,
 	}
 }
 

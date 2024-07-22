@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/proxati/mitmproxy/cert"
-	log "github.com/sirupsen/logrus"
 )
 
 // Similar to standard library server, run through current process memory socket data, without tcp or unix socket.
@@ -167,7 +166,7 @@ func (m *middle) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 func (m *middle) intercept(pipeServerConn *pipeConn) {
 	buf, err := pipeServerConn.Peek(3)
 	if err != nil {
-		log.Errorf("Peek error: %v\n", err)
+		sLogger.Error("could not peek", "error", err)
 		pipeServerConn.Close()
 		return
 	}
