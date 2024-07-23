@@ -63,7 +63,8 @@ func (a *LogAddon) Requestheaders(f *proxy.Flow) {
 		a.logger.Info(
 			"request completed",
 			"clientAddress", f.ConnContext.ClientConn.Conn.RemoteAddr(),
-			"URL", f.Request.Method, f.Request.URL.String(),
+			"method", f.Request.Method,
+			"URL", f.Request.URL.String(),
 			"StatusCode", StatusCode,
 			"contentLen", contentLen,
 			"length", time.Since(start).Milliseconds(),
