@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -23,61 +24,70 @@ var normalErrMsgs []string = []string{
 
 // logErr will only print unexpected error messages.
 // It will return true if the error is unexpected.
-func logErr(logger *slog.Logger, err error) bool {
+func logErr(logger *slog.Logger, loggerMsg string, err error) bool {
+	if loggerMsg == "" {
+		loggerMsg = "Network error"
+	}
+
 	msg := err.Error()
 
 	for _, str := range normalErrMsgs {
 		if strings.Contains(msg, str) {
-			logger.Debug("ignoring network error", "error", err)
+			logger.Debug(loggerMsg, "error", err)
 			return false
 		}
 	}
 
-	logger.Error("network error", "error", err)
+	logger.Error(loggerMsg, "error", err)
 	return true
 }
 
 // Forward traffic.
 func transfer(logger *slog.Logger, server, client io.ReadWriteCloser) {
-	done := make(chan struct{})
-	defer close(done)
+	var wg sync.WaitGroup
+	errChan := make(chan error, 2) // Buffer to avoid goroutine leak
 
-	errChan := make(chan error)
-	go func() {
-		_, err := io.Copy(server, client)
-		logger.Debug("client copy end", "error", err)
-		client.Close()
-		select {
-		case <-done:
-			return
-		case errChan <- err:
-			return
-		}
-	}()
-	go func() {
-		_, err := io.Copy(client, server)
-		logger.Debug("server copy end", "error", err)
-		server.Close()
-
-		if clientConn, ok := client.(*wrapClientConn); ok {
-			err := clientConn.Conn.(*net.TCPConn).CloseRead()
-			logger.Debug("clientConn.Conn.(*net.TCPConn).CloseRead()", "error", err)
-		}
-
-		select {
-		case <-done:
-			return
-		case errChan <- err:
-			return
-		}
-	}()
-
-	for i := 0; i < 2; i++ {
-		if err := <-errChan; err != nil {
-			logErr(logger, err)
-			return
+	// Function to copy and handle closing of connections
+	copyAndClose := func(dst, src io.ReadWriteCloser, direction string) {
+		defer wg.Done()
+		defer src.Close()
+		written, err := io.Copy(dst, src)
+		logger.Debug("transfer copy", "direction", direction, "written", written)
+		if err != nil {
+			err = fmt.Errorf("%s copy: %w", direction, err)
+			errChan <- err
 		}
 	}
+
+	wg.Add(2)
+	go copyAndClose(server, client, "client->server")
+	go copyAndClose(client, server, "server->client")
+
+	// Wait for both copy operations to finish
+	wg.Wait()
+	close(errChan)
+
+	// Close the client connection if it's a TCP connection
+	if clientConn, ok := client.(*wrapClientConn); ok {
+		err := closeTCPConnection(clientConn)
+		if err != nil {
+			go logErr(logger, "close TCP connection error", err)
+		}
+	}
+
+	for err := range errChan {
+		if err != nil {
+			go logErr(logger, "transfer copy error", err)
+		}
+	}
+}
+
+// closeTCPConnection closes the read side of a TCP connection.
+func closeTCPConnection(clientConn *wrapClientConn) error {
+	if tcpConn, ok := clientConn.Conn.(*net.TCPConn); ok {
+		return tcpConn.CloseRead()
+	}
+	return nil
 }
 
 // Try to read Reader into the buffer.
