@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -12,11 +13,11 @@ import (
 )
 
 type Options struct {
-	Debug                 int
 	Addr                  string
 	StreamLargeBodies     int64 // When the request or response body is larger then this in bytes, turn into stream model.
 	InsecureSkipVerifyTLS bool
 	CA                    cert.Getter
+	Logger                *slog.Logger
 }
 
 type Proxy struct {
@@ -31,6 +32,10 @@ type Proxy struct {
 func NewProxy(opts *Options) (*Proxy, error) {
 	if opts.StreamLargeBodies <= 0 {
 		opts.StreamLargeBodies = 1024 * 1024 * 5 // default: 5mb
+	}
+
+	if opts.Logger != nil {
+		sLogger = opts.Logger
 	}
 
 	proxy := &Proxy{
@@ -78,7 +83,7 @@ func (proxy *Proxy) Start() error {
 
 	go proxy.interceptor.start()
 
-	sLogger.Debug("mitm proxy start", "listenAddress", proxy.server.Addr)
+	sLogger.Debug("MiTM proxy starting...", "listenAddress", proxy.server.Addr)
 	pln := &wrapListener{
 		Listener: ln,
 		proxy:    proxy,
@@ -135,19 +140,19 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if body != nil {
 			_, err := io.Copy(res, body)
 			if err != nil {
-				logErr(logger, err)
+				logErr(logger, "body copy", err)
 			}
 		}
 		if response.BodyReader != nil {
 			_, err := io.Copy(res, response.BodyReader)
 			if err != nil {
-				logErr(logger, err)
+				logErr(logger, "BodyReader", err)
 			}
 		}
 		if response.Body != nil && len(response.Body) > 0 {
 			_, err := res.Write(response.Body)
 			if err != nil {
-				logErr(logger, err)
+				logErr(logger, "body writer", err)
 			}
 		}
 	}
@@ -221,7 +226,7 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	f.ConnContext.initHttpServerConn()
 	proxyRes, err := f.ConnContext.ServerConn.client.Do(proxyReq)
 	if err != nil {
-		logErr(logger, err)
+		logErr(logger, "http req", err)
 		res.WriteHeader(502)
 		return
 	}

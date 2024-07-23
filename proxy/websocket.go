@@ -23,7 +23,7 @@ func (s *webSocket) ws(conn net.Conn, host string) {
 	defer conn.Close()
 	remoteConn, err := net.Dial("tcp", host)
 	if err != nil {
-		logErr(logger, err)
+		logErr(logger, "websocket dial", err)
 		return
 	}
 	defer remoteConn.Close()
