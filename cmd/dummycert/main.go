@@ -5,13 +5,13 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/proxati/mitmproxy/cert"
-	log "github.com/sirupsen/logrus"
 )
 
-// 生成假的/用于测试的服务器证书
+// Generate fake/test server certificates
 
 type Config struct {
 	commonName string
@@ -25,16 +25,13 @@ func loadConfig() *Config {
 }
 
 func main() {
-	log.SetLevel(log.InfoLevel)
-	log.SetReportCaller(false)
-	log.SetOutput(os.Stdout)
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
 
 	config := loadConfig()
 	if config.commonName == "" {
-		log.Fatal("commonName required")
+		logger.Error("commonName required")
+		os.Exit(1)
 	}
 
 	l := &cert.MemoryLoader{}

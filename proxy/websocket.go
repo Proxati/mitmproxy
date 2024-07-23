@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Currently only forwarding websocket flow.
@@ -17,35 +15,41 @@ type webSocket struct{}
 var defaultWebSocket webSocket
 
 func (s *webSocket) ws(conn net.Conn, host string) {
-	log := log.WithField("in", "webSocket.ws").WithField("host", host)
+	logger := sLogger.With(
+		"in", "webSocket.ws",
+		"host", host,
+	)
 
 	defer conn.Close()
 	remoteConn, err := net.Dial("tcp", host)
 	if err != nil {
-		logErr(log, err)
+		logErr(logger, err)
 		return
 	}
 	defer remoteConn.Close()
-	transfer(log, conn, remoteConn)
+	transfer(logger, conn, remoteConn)
 }
 
 func (s *webSocket) wss(res http.ResponseWriter, req *http.Request) {
-	log := log.WithField("in", "webSocket.wss").WithField("host", req.Host)
+	logger := sLogger.With(
+		"in", "webSocket.wss",
+		"host", req.Host,
+	)
 
 	upgradeBuf, err := httputil.DumpRequest(req, false)
 	if err != nil {
-		log.Errorf("DumpRequest: %v\n", err)
+		logger.Error("DumpRequest", "error", err)
 		res.WriteHeader(502)
 		return
 	}
 
-	cconn, _, err := res.(http.Hijacker).Hijack()
+	cConn, _, err := res.(http.Hijacker).Hijack()
 	if err != nil {
-		log.Errorf("Hijack: %v\n", err)
+		logger.Error("Hijack", "error", err)
 		res.WriteHeader(502)
 		return
 	}
-	defer cconn.Close()
+	defer cConn.Close()
 
 	host := req.Host
 	if !strings.Contains(host, ":") {
@@ -53,15 +57,15 @@ func (s *webSocket) wss(res http.ResponseWriter, req *http.Request) {
 	}
 	conn, err := tls.Dial("tcp", host, nil)
 	if err != nil {
-		log.Errorf("tls.Dial: %v\n", err)
+		logger.Error("tls.Dial", "error", err)
 		return
 	}
 	defer conn.Close()
 
 	_, err = conn.Write(upgradeBuf)
 	if err != nil {
-		log.Errorf("wss upgrade: %v\n", err)
+		logger.Error("wss upgrade", "error", err)
 		return
 	}
-	transfer(log, conn, cconn)
+	transfer(logger, conn, cConn)
 }

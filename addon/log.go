@@ -1,35 +1,54 @@
 package addon
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/proxati/mitmproxy/proxy"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // LogAddon log connection and flow
 type LogAddon struct {
 	proxy.BaseAddon
+	logger *slog.Logger
 }
 
-func (addon *LogAddon) ClientConnected(client *proxy.ClientConn) {
-	log.Infof("%v client connect\n", client.Conn.RemoteAddr())
+// NewLogAddon create a new LogAddon
+func NewLogAddon() *LogAddon {
+	return &LogAddon{
+		logger: sLogger.With("addonName", "LogAddon"),
+	}
 }
 
-func (addon *LogAddon) ClientDisconnected(client *proxy.ClientConn) {
-	log.Infof("%v client disconnect\n", client.Conn.RemoteAddr())
+func (a *LogAddon) ClientConnected(client *proxy.ClientConn) {
+	a.logger.Info("client connect", "clientAddress", client.Conn.RemoteAddr())
 }
 
-func (addon *LogAddon) ServerConnected(connCtx *proxy.ConnContext) {
-	log.Infof("%v server connect %v (%v->%v)\n", connCtx.ClientConn.Conn.RemoteAddr(), connCtx.ServerConn.Address, connCtx.ServerConn.Conn.LocalAddr(), connCtx.ServerConn.Conn.RemoteAddr())
+func (a *LogAddon) ClientDisconnected(client *proxy.ClientConn) {
+	a.logger.Info("client disconnect", "clientAddress", client.Conn.RemoteAddr())
 }
 
-func (addon *LogAddon) ServerDisconnected(connCtx *proxy.ConnContext) {
-	log.Infof("%v server disconnect %v (%v->%v)\n", connCtx.ClientConn.Conn.RemoteAddr(), connCtx.ServerConn.Address, connCtx.ServerConn.Conn.LocalAddr(), connCtx.ServerConn.Conn.RemoteAddr())
+func (a *LogAddon) ServerConnected(connCtx *proxy.ConnContext) {
+	a.logger.Info(
+		"server connect",
+		"clientAddress", connCtx.ClientConn.Conn.RemoteAddr(),
+		"serverAddress", connCtx.ServerConn.Address,
+		"serverLocalAddress", connCtx.ServerConn.Conn.LocalAddr(),
+		"serverRemoteAddress", connCtx.ServerConn.Conn.RemoteAddr(),
+	)
 }
 
-func (addon *LogAddon) Requestheaders(f *proxy.Flow) {
+func (a *LogAddon) ServerDisconnected(connCtx *proxy.ConnContext) {
+	a.logger.Info(
+		"server disconnect",
+		"clientAddress", connCtx.ClientConn.Conn.RemoteAddr(),
+		"serverAddress", connCtx.ServerConn.Address,
+		"serverLocalAddress", connCtx.ServerConn.Conn.LocalAddr(),
+		"serverRemoteAddress", connCtx.ServerConn.Conn.RemoteAddr(),
+	)
+}
+
+func (a *LogAddon) Requestheaders(f *proxy.Flow) {
 	start := time.Now()
 	go func() {
 		<-f.Done()
@@ -41,6 +60,14 @@ func (addon *LogAddon) Requestheaders(f *proxy.Flow) {
 		if f.Response != nil && f.Response.Body != nil {
 			contentLen = len(f.Response.Body)
 		}
-		log.Infof("%v %v %v %v %v - %v ms\n", f.ConnContext.ClientConn.Conn.RemoteAddr(), f.Request.Method, f.Request.URL.String(), StatusCode, contentLen, time.Since(start).Milliseconds())
+		a.logger.Info(
+			"request completed",
+			"clientAddress", f.ConnContext.ClientConn.Conn.RemoteAddr(),
+			"method", f.Request.Method,
+			"URL", f.Request.URL.String(),
+			"StatusCode", StatusCode,
+			"contentLen", contentLen,
+			"length", time.Since(start).Milliseconds(),
+		)
 	}()
 }

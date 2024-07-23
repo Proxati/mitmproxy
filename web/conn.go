@@ -6,7 +6,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/proxati/mitmproxy/proxy"
-	log "github.com/sirupsen/logrus"
 )
 
 type breakPointRule struct {
@@ -47,7 +46,7 @@ func (c *concurrentConn) trySendConnMessage(f *proxy.Flow) {
 	msg := newMessageFlow(messageTypeConn, f)
 	err := c.conn.WriteMessage(websocket.BinaryMessage, msg.bytes())
 	if err != nil {
-		log.Error(err)
+		sLogger.Error("could not write to websocket", "error", err)
 		return
 	}
 }
@@ -61,7 +60,7 @@ func (c *concurrentConn) whenConnClose(connCtx *proxy.ConnContext) {
 	msg := newMessageConnClose(connCtx)
 	err := c.conn.WriteMessage(websocket.BinaryMessage, msg.bytes())
 	if err != nil {
-		log.Error(err)
+		sLogger.Error("could not write to websocket during close", "error", err)
 		return
 	}
 }
@@ -75,7 +74,7 @@ func (c *concurrentConn) writeMessage(msg *messageFlow, f *proxy.Flow) {
 	err := c.conn.WriteMessage(websocket.BinaryMessage, msg.bytes())
 	c.mu.Unlock()
 	if err != nil {
-		log.Error(err)
+		sLogger.Error("could not WriteMessage", "error", err)
 		return
 	}
 
@@ -88,18 +87,18 @@ func (c *concurrentConn) readloop() {
 	for {
 		mt, data, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Error(err)
+			sLogger.Error("could not ReadMessage", "error", err)
 			break
 		}
 
 		if mt != websocket.BinaryMessage {
-			log.Warn("not BinaryMessage, skip")
+			sLogger.Warn("not BinaryMessage, skipping")
 			continue
 		}
 
 		msg := parseMessage(data)
 		if msg == nil {
-			log.Warn("parseMessage error, skip")
+			sLogger.Warn("parseMessage error, skipping")
 			continue
 		}
 
@@ -111,7 +110,7 @@ func (c *concurrentConn) readloop() {
 		} else if msgMeta, ok := msg.(*messageMeta); ok {
 			c.breakPointRules = msgMeta.breakPointRules
 		} else {
-			log.Warn("invalid message, skip")
+			sLogger.Warn("invalid message, skipping")
 		}
 	}
 }

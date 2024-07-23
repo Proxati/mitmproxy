@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/andybalholm/brotli"
-	log "github.com/sirupsen/logrus"
 )
 
 var errEncodingNotSupport = errors.New("content-encoding not support")
@@ -61,7 +60,7 @@ func (r *Response) DecodedBody() ([]byte, error) {
 	decodedBody, decodedErr := decode(enc, r.Body)
 	if decodedErr != nil {
 		r.decodedErr = decodedErr
-		log.Error(r.decodedErr)
+		sLogger.Error("decoding error", "error", r.decodedErr)
 		return nil, decodedErr
 	}
 

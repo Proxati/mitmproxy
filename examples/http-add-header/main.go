@@ -1,9 +1,10 @@
 package main
 
 import (
+	"log/slog"
+	"net/http"
+	"os"
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/proxati/mitmproxy/proxy"
 )
@@ -26,10 +27,13 @@ func main() {
 
 	p, err := proxy.NewProxy(opts)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("could not start proxy", "error", err)
 	}
 
 	p.AddAddon(&AddHeader{})
 
-	log.Fatal(p.Start())
+	if err := p.Start(); err != http.ErrServerClosed {
+		slog.Error("failed to start proxy", "error", err)
+		os.Exit(1)
+	}
 }

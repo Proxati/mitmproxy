@@ -4,26 +4,31 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"unicode"
 
 	"github.com/proxati/mitmproxy/proxy"
-	log "github.com/sirupsen/logrus"
 )
 
 type Dumper struct {
 	proxy.BaseAddon
-	out   io.Writer
-	level int // 0: header 1: header + body
+	out    io.Writer
+	level  int // 0: header 1: header + body
+	logger *slog.Logger
 }
 
 func NewDumper(out io.Writer, level int) *Dumper {
 	if level != 0 && level != 1 {
 		level = 0
 	}
-	return &Dumper{out: out, level: level}
+	return &Dumper{
+		out:    out,
+		level:  level,
+		logger: sLogger.With("addonName", "Dumper"),
+	}
 }
 
 func NewDumperWithFilename(filename string, level int) *Dumper {
@@ -41,9 +46,19 @@ func (d *Dumper) Requestheaders(f *proxy.Flow) {
 	}()
 }
 
-// call when <-f.Done()
+// dump is called when <-f.Done()
 func (d *Dumper) dump(f *proxy.Flow) {
 	// Reference httputil.DumpRequest.
+	logger := d.logger.With("ID", f.Id.String())
+
+	if f.Request == nil {
+		logger.Error("request is nil")
+		return
+	}
+
+	if f.Request.URL != nil {
+		logger = logger.With("URL", f.Request.URL.String())
+	}
 
 	buf := bytes.NewBuffer(make([]byte, 0))
 	fmt.Fprintf(buf, "%s %s %s\r\n", f.Request.Method, f.Request.URL.RequestURI(), f.Request.Proto)
@@ -57,7 +72,7 @@ func (d *Dumper) dump(f *proxy.Flow) {
 
 	err := f.Request.Header.WriteSubset(buf, nil)
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not write request headers to buffer", "error", err)
 	}
 	buf.WriteString("\r\n")
 
@@ -70,7 +85,7 @@ func (d *Dumper) dump(f *proxy.Flow) {
 		fmt.Fprintf(buf, "%v %v %v\r\n", f.Request.Proto, f.Response.StatusCode, http.StatusText(f.Response.StatusCode))
 		err = f.Response.Header.WriteSubset(buf, nil)
 		if err != nil {
-			log.Error(err)
+			logger.Error("could not write response headers to buffer", "error", err)
 		}
 		buf.WriteString("\r\n")
 
@@ -87,7 +102,7 @@ func (d *Dumper) dump(f *proxy.Flow) {
 
 	_, err = d.out.Write(buf.Bytes())
 	if err != nil {
-		log.Error(err)
+		logger.Error("could not write bytes from buffer", "error", err)
 	}
 }
 
