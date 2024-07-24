@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
 // client connection
@@ -24,7 +24,7 @@ type ClientConn struct {
 
 func newClientConn(c *wrapClientConn) *ClientConn {
 	return &ClientConn{
-		ID:   uuid.NewV4(),
+		ID:   uuid.New(),
 		Conn: c,
 		TLS:  false,
 	}
@@ -58,7 +58,7 @@ type ServerConn struct {
 
 func newServerConn() *ServerConn {
 	return &ServerConn{
-		ID:            uuid.NewV4(),
+		ID:            uuid.New(),
 		tlsHandshaked: make(chan struct{}),
 	}
 }
