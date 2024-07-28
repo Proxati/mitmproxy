@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/proxati/mitmproxy/proxy"
-	uuid "github.com/satori/go.uuid"
 )
 
 // message:
@@ -147,7 +147,7 @@ func parseMessageEdit(data []byte) *messageEdit {
 
 	mType := (messageType)(data[1])
 
-	id, err := uuid.FromString(string(data[2:38]))
+	id, err := uuid.Parse(string(data[2:38]))
 	if err != nil {
 		return nil
 	}
