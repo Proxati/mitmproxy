@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime"
 
 	"github.com/proxati/mitmproxy/cert"
 )
@@ -157,10 +158,13 @@ func (proxy *Proxy) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// when addons panic
+	// if addons panic
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("Recovered from panic", "error", err)
+			buf := make([]byte, 1<<16) // 64KB buffer
+			stackSize := runtime.Stack(buf, true)
+			stackTrace := string(buf[:stackSize])
+			logger.Error("Recovered from panic", "error", err, "stackTrace", stackTrace)
 		}
 	}()
 
