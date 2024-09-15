@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -297,32 +298,34 @@ func (connCtx *ConnContext) tlsHandshake(clientHello *tls.ClientHelloInfo) error
 	return nil
 }
 
-// wrap tcpConn for remote client
+// wrapClientConn is a wrapper around net.Conn for a client connection.
 type wrapClientConn struct {
 	net.Conn
 	proxy    *Proxy
 	connCtx  *ConnContext
-	closed   bool
+	once     sync.Once
 	closeErr error
 }
 
+// Close closes the wrapped client connection and performs necessary cleanup.
 func (c *wrapClientConn) Close() error {
-	if c.closed {
-		return c.closeErr
-	}
-	sLogger.Debug("in wrapClientConn close", "clientAddress", c.connCtx.ClientConn.Conn.RemoteAddr())
+	c.once.Do(func() {
+		// Log the close operation with the client's remote address.
+		sLogger.Debug("in wrapClientConn close", "clientAddress", c.connCtx.ClientConn.Conn.RemoteAddr())
 
-	c.closed = true
-	c.closeErr = c.Conn.Close()
+		// Close the underlying connection and store any error that occurs.
+		c.closeErr = c.Conn.Close()
 
-	for _, addon := range c.proxy.Addons {
-		addon.ClientDisconnected(c.connCtx.ClientConn)
-	}
+		// Notify all addons that the client has disconnected.
+		for _, addon := range c.proxy.Addons {
+			addon.ClientDisconnected(c.connCtx.ClientConn)
+		}
 
-	if c.connCtx.ServerConn != nil && c.connCtx.ServerConn.Conn != nil {
-		c.connCtx.ServerConn.Conn.Close()
-	}
-
+		// If there is an active server connection, close it.
+		if c.connCtx.ServerConn != nil && c.connCtx.ServerConn.Conn != nil {
+			c.connCtx.ServerConn.Conn.Close()
+		}
+	})
 	return c.closeErr
 }
 
@@ -344,35 +347,40 @@ func (l *wrapListener) Accept() (net.Conn, error) {
 	}, nil
 }
 
-// wrap tcpConn for remote server
+// wrapServerConn is a wrapper around net.Conn for a remote server connection.
 type wrapServerConn struct {
 	net.Conn
 	proxy    *Proxy
 	connCtx  *ConnContext
-	closed   bool
+	once     sync.Once
 	closeErr error
 }
 
+// Close closes the wrapped server connection and performs necessary cleanup.
 func (c *wrapServerConn) Close() error {
-	if c.closed {
-		return c.closeErr
-	}
-	sLogger.Debug("in wrapServerConn close", "clientAddress", c.connCtx.ClientConn.Conn.RemoteAddr())
+	c.once.Do(func() {
+		sLogger.Debug("in wrapServerConn close", "clientAddress", c.connCtx.ClientConn.Conn.RemoteAddr())
 
-	c.closed = true
-	c.closeErr = c.Conn.Close()
+		// Close the underlying connection and store any error that occurs.
+		c.closeErr = c.Conn.Close()
 
-	for _, addon := range c.proxy.Addons {
-		addon.ServerDisconnected(c.connCtx)
-	}
+		// Notify all addons that the server has disconnected.
+		for _, addon := range c.proxy.Addons {
+			addon.ServerDisconnected(c.connCtx)
+		}
 
-	if !c.connCtx.ClientConn.TLS {
-		c.connCtx.ClientConn.Conn.Conn.(*net.TCPConn).CloseRead()
-		return c.closeErr
-	}
-	if !c.connCtx.closeAfterResponse {
-		c.connCtx.pipeConn.Close()
-	}
+		// If the client connection is not using TLS, close the read side of the TCP connection.
+		if !c.connCtx.ClientConn.TLS {
+			if tcpConn, ok := c.connCtx.ClientConn.Conn.Conn.(*net.TCPConn); ok {
+				tcpConn.CloseRead()
+			}
+			return
+		}
 
+		// If the connection should not be closed after the response and there is a pipe connection, close it.
+		if !c.connCtx.closeAfterResponse && c.connCtx.pipeConn != nil {
+			c.connCtx.pipeConn.Close()
+		}
+	})
 	return c.closeErr
 }
